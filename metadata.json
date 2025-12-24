@@ -1,0 +1,8 @@
+{
+  "name": "StudioInABox",
+  "description": "A professional canvas recording studio with PDF slides, webcam integration, and teleprompter.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
