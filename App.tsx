@@ -6,6 +6,8 @@ import { CanvasArea } from './components/CanvasArea';
 import { setupCanvasRecorder } from './utils/recorder';
 import { Play, Square, Pause, ChevronRight, ChevronLeft } from 'lucide-react';
 
+const pdfjsLib = (window as any).pdfjsLib;
+
 const INITIAL_CONFIG: AppConfig = {
   bgColor: '#fdf5f2', // Warm white from example
   slideRoundness: 35,
@@ -121,8 +123,7 @@ It's built for educators and content creators.
   // 3. Load PDF
   const loadPDF = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
-    // @ts-ignore
-    const loadingTask = window.pdfjsLib.getDocument(arrayBuffer);
+    const loadingTask = pdfjsLib.getDocument(arrayBuffer);
     const pdf = await loadingTask.promise;
     setPdfState({
         file,
