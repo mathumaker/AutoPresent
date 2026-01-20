@@ -71,6 +71,9 @@ const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scriptContainerRef = useRef<HTMLDivElement>(null);
 
+  // Keyboard Scroll State
+  const scrollDirectionRef = useRef<number>(0); // -1 (up), 0 (stop), 1 (down)
+
   // Script Content
   const [scriptContent, setScriptContent] = useState<string>(`# Welcome to Studio In A Box
 
@@ -178,42 +181,89 @@ It's built for educators and content creators.
       }
   };
 
-  // 6. Direct Scroll Logic (No Physics, No Smoothing, No Snap)
+  // 6. Direct Scroll Logic & Keyboard Logic
   useEffect(() => {
-    // Only activate global scroll when in recording/paused mode
+    // Only activate controls when in recording/paused mode
     if (recordingStatus === 'idle') {
         return;
     }
 
+    // A. Trackpad / Mouse Wheel Handler (1:1 Movement)
     const handleGlobalWheel = (e: WheelEvent) => {
         if (!scriptContainerRef.current) return;
-
         // Prevent default to capture the event fully and prevent body scroll
         e.preventDefault();
         
-        // Direct, raw scroll mapping.
-        // Multiply by speed config to allow sensitivity adjustment.
-        // This manipulates scrollTop directly for instant 1:1 response.
+        // Direct mapping: 1 pixel of swipe = 1 unit of scroll * speed config
         const scrollAmount = e.deltaY * config.teleprompterSpeed;
-        
         scriptContainerRef.current.scrollTop += scrollAmount;
     };
+    
+    // B. Keyboard Handlers
+    const handleKeyDown = (e: KeyboardEvent) => {
+        // Prevent default only for the keys we use to stop browser scrolling
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+        }
 
-    // { passive: false } is required to use preventDefault()
+        // Slide Navigation (Press)
+        if (e.key === 'ArrowLeft') {
+             setPdfState(prev => ({ ...prev, currentPage: Math.max(1, prev.currentPage - 1) }));
+        } else if (e.key === 'ArrowRight') {
+             setPdfState(prev => ({ ...prev, currentPage: Math.min(prev.numPages, prev.currentPage + 1) }));
+        }
+
+        // Prompter Scroll Direction (Hold)
+        if (e.key === 'ArrowUp') {
+            scrollDirectionRef.current = -1;
+        } else if (e.key === 'ArrowDown') {
+            scrollDirectionRef.current = 1;
+        }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+        // Stop scrolling when key is released
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            scrollDirectionRef.current = 0;
+        }
+    };
+
+    // C. Animation Loop for Smooth Keyboard Scrolling
+    let animationFrameId: number;
+    const scrollLoop = () => {
+        if (scriptContainerRef.current && scrollDirectionRef.current !== 0) {
+            // Base speed (pixels per frame) * user config speed
+            const baseSpeed = 8; 
+            scriptContainerRef.current.scrollTop += (scrollDirectionRef.current * baseSpeed * config.teleprompterSpeed);
+        }
+        animationFrameId = requestAnimationFrame(scrollLoop);
+    };
+
+    // Initialize Listeners & Loop
     window.addEventListener('wheel', handleGlobalWheel, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    animationFrameId = requestAnimationFrame(scrollLoop);
     
     return () => {
         window.removeEventListener('wheel', handleGlobalWheel);
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+        cancelAnimationFrame(animationFrameId);
     };
-  }, [recordingStatus, config.teleprompterSpeed]);
+  }, [recordingStatus, config.teleprompterSpeed]); // Re-bind if config speed changes
 
 
-  // 7. Mouse Navigation
+  // 7. Mouse Navigation (Click)
   useEffect(() => {
     if (recordingStatus === 'idle') return;
 
     const handleMouseClick = (e: MouseEvent) => {
         e.preventDefault();
+        // Prevent conflicts if user is just clicking around the UI buttons
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'BUTTON' || target.closest('button')) return;
+
         if (e.button === 0) {
              setPdfState(prev => ({ ...prev, currentPage: Math.max(1, prev.currentPage - 1) }));
         } else if (e.button === 2) {
